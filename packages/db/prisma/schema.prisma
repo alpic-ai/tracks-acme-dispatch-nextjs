@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String
+  role      String   @default("dispatcher")
+  isActive  Boolean  @default(true) @map("is_active")
+  // Null until an admin sets a password; such a user cannot sign in to the
+  // web app but may still own api tokens.
+  passwordHash String? @map("password_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  apiTokens ApiToken[]
+  stockAdjustments StockAdjustment[]
+
+  @@map("users")
+}
+
+model ApiToken {
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  name       String
+  tokenHash  String    @unique @map("token_hash")
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("api_tokens")
+}
+
+model Technician {
+  id              Int      @id @default(autoincrement())
+  name            String
+  phone           String?
+  // JSON array of strings; SQLite has no native list type.
+  skillTags       String   @default("[]") @map("skill_tags")
+  hourlyCostCents Int      @map("hourly_cost_cents")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  appointments    Appointment[]
+
+  @@map("technicians")
+}
+
+model Customer {
+  id             Int      @id @default(autoincrement())
+  name           String
+  contactEmail   String?  @map("contact_email")
+  phone          String?
+  serviceAddress String   @map("service_address")
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  jobs           Job[]
+
+  @@map("customers")
+}
+
+model Job {
+  id          Int      @id @default(autoincrement())
+  customerId  Int      @map("customer_id")
+  title       String
+  description String?
+  priority    String   @default("normal")
+  status      String   @default("requested")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  customer    Customer @relation(fields: [customerId], references: [id])
+  appointments Appointment[]
+  jobParts    JobPart[]
+  invoiceRecord InvoiceRecord?
+
+  @@index([customerId])
+  @@map("jobs")
+}
+
+model Part {
+  id             Int         @id @default(autoincrement())
+  sku            String      @unique
+  name           String
+  unitCostCents  Int         @map("unit_cost_cents")
+  unitPriceCents Int         @map("unit_price_cents")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  stockLevel     StockLevel?
+  jobParts       JobPart[]
+  stockAdjustments StockAdjustment[]
+
+  @@map("parts")
+}
+
+model StockLevel {
+  id             Int      @id @default(autoincrement())
+  partId         Int      @unique @map("part_id")
+  quantityOnHand Int      @default(0) @map("quantity_on_hand")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  part           Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+
+  @@map("stock_levels")
+}
+
+model InvoiceRecord {
+  id         Int               @id @default(autoincrement())
+  jobId      Int               @unique @map("job_id")
+  laborCents Int               @map("labor_cents")
+  partsCents Int               @map("parts_cents")
+  totalCents Int               @map("total_cents")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+  job        Job               @relation(fields: [jobId], references: [id])
+  lineItems  InvoiceLineItem[]
+
+  @@map("invoice_records")
+}
+
+model InvoiceLineItem {
+  id              Int           @id @default(autoincrement())
+  invoiceRecordId Int           @map("invoice_record_id")
+  position        Int
+  kind            String
+  description     String
+  quantity        Float
+  unitCents       Int           @map("unit_cents")
+  amountCents     Int           @map("amount_cents")
+  weekend         Boolean       @default(false)
+  invoiceRecord   InvoiceRecord @relation(fields: [invoiceRecordId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceRecordId, position])
+  @@map("invoice_line_items")
+}
+
+model JobPart {
+  id             Int      @id @default(autoincrement())
+  jobId          Int      @map("job_id")
+  partId         Int      @map("part_id")
+  quantity       Int
+  // Captured from the part at the time of use so later price changes never
+  // restate an existing invoice.
+  unitPriceCents Int      @default(0) @map("unit_price_cents")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  part      Part     @relation(fields: [partId], references: [id])
+
+  @@index([jobId])
+  @@map("job_parts")
+}
+
+model StockAdjustment {
+  id            Int      @id @default(autoincrement())
+  partId        Int      @map("part_id")
+  delta         Int
+  quantityAfter Int      @map("quantity_after")
+  note          String?
+  userId        Int?     @map("user_id")
+  createdAt     DateTime @default(now()) @map("created_at")
+  part          Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([partId])
+  @@map("stock_adjustments")
+}
+
+model Appointment {
+  id              Int        @id @default(autoincrement())
+  jobId           Int        @map("job_id")
+  technicianId    Int        @map("technician_id")
+  scheduledStart  DateTime   @map("scheduled_start")
+  scheduledEnd    DateTime   @map("scheduled_end")
+  completionNotes String?    @map("completion_notes")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  job             Job        @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  technician      Technician @relation(fields: [technicianId], references: [id])
+
+  @@index([jobId])
+  @@index([technicianId, scheduledStart])
+  @@map("appointments")
+}

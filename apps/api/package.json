@@ -1,0 +1,26 @@
+{
+  "name": "@acme/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@acme/core": "workspace:*",
+    "@acme/db": "workspace:*",
+    "next": "^15.5.9",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.3",
+    "@types/react": "^19.2.7",
+    "bcryptjs": "^3.0.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
